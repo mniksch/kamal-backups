@@ -63,8 +63,8 @@ prompt_secret() {
     local message="$1"
     local response
 
-    read -rsp "${message}: " response
-    echo ""
+    read -rsp "${message} (will be hidden): " response
+    echo "" >&2  # Newline to stderr so it doesn't get captured
     echo "${response}"
 }
 
