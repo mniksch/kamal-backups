@@ -1,0 +1,480 @@
+#!/bin/bash
+# setup.sh - Interactive setup wizard for kamal-backups
+# Guides you through configuring AWS credentials, sites, and email notifications
+
+set -euo pipefail
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source common utilities
+source "${SCRIPT_DIR}/lib/common.sh"
+
+# Colors and formatting
+BOLD='\033[1m'
+UNDERLINE='\033[4m'
+
+# Print a section header
+print_header() {
+    echo ""
+    echo -e "${BOLD}${BLUE}════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}${BLUE}  $1${NC}"
+    echo -e "${BOLD}${BLUE}════════════════════════════════════════════════════════════════${NC}"
+    echo ""
+}
+
+# Print a subsection
+print_step() {
+    echo -e "${BOLD}${GREEN}→ $1${NC}"
+}
+
+# Prompt for input with default value
+prompt() {
+    local message="$1"
+    local default="${2:-}"
+    local response
+
+    if [[ -n "${default}" ]]; then
+        read -rp "${message} [${default}]: " response
+        echo "${response:-${default}}"
+    else
+        read -rp "${message}: " response
+        echo "${response}"
+    fi
+}
+
+# Prompt for yes/no
+prompt_yn() {
+    local message="$1"
+    local default="${2:-n}"
+    local response
+
+    if [[ "${default}" == "y" ]]; then
+        read -rp "${message} [Y/n]: " response
+        [[ -z "${response}" || "${response}" =~ ^[Yy] ]]
+    else
+        read -rp "${message} [y/N]: " response
+        [[ "${response}" =~ ^[Yy] ]]
+    fi
+}
+
+# Prompt for secret input (hidden)
+prompt_secret() {
+    local message="$1"
+    local response
+
+    read -rsp "${message}: " response
+    echo ""
+    echo "${response}"
+}
+
+# Check prerequisites
+step_prerequisites() {
+    print_header "Step 1: Checking Prerequisites"
+
+    local missing=()
+
+    print_step "Checking for Docker..."
+    if command_exists docker; then
+        echo "  ✓ Docker found: $(docker --version)"
+    else
+        echo "  ✗ Docker not found"
+        missing+=("docker")
+    fi
+
+    print_step "Checking for AWS CLI..."
+    if command_exists aws; then
+        echo "  ✓ AWS CLI found: $(aws --version 2>&1 | head -1)"
+    else
+        echo "  ✗ AWS CLI not found"
+        missing+=("aws")
+    fi
+
+    print_step "Checking for gzip..."
+    if command_exists gzip; then
+        echo "  ✓ gzip found"
+    else
+        echo "  ✗ gzip not found"
+        missing+=("gzip")
+    fi
+
+    print_step "Checking for jq (for email)..."
+    if command_exists jq; then
+        echo "  ✓ jq found"
+    else
+        echo "  ⚠ jq not found (required for email notifications)"
+        echo "    Install with: apt-get install jq"
+    fi
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo ""
+        echo -e "${RED}Missing required tools: ${missing[*]}${NC}"
+        echo ""
+        echo "Please install them before continuing:"
+        echo "  - Docker: https://docs.docker.com/engine/install/"
+        echo "  - AWS CLI: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
+        echo "  - gzip: Usually pre-installed, or: apt-get install gzip"
+        exit 1
+    fi
+
+    echo ""
+    echo -e "${GREEN}✓ All prerequisites met${NC}"
+}
+
+# Configure AWS
+step_aws_config() {
+    print_header "Step 2: AWS Configuration"
+
+    echo "You need to create an IAM user with the following policy."
+    echo "Go to AWS Console → IAM → Users → Create User → Attach policy"
+    echo ""
+    echo -e "${YELLOW}Required IAM Policy:${NC}"
+    echo ""
+    cat <<'EOF'
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "S3BackupBucketAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject",
+        "s3:ListBucket",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": [
+        "arn:aws:s3:::*-pg",
+        "arn:aws:s3:::*-pg/*"
+      ]
+    },
+    {
+      "Sid": "SESEmailNotifications",
+      "Effect": "Allow",
+      "Action": [
+        "ses:SendEmail",
+        "ses:SendRawEmail"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+EOF
+    echo ""
+    echo -e "${YELLOW}Security Notes:${NC}"
+    echo "  - The *-pg pattern limits access to buckets ending in '-pg'"
+    echo "  - You can replace with specific bucket ARNs for tighter security"
+    echo "  - SES permission is optional if you don't need email notifications"
+    echo ""
+
+    if ! prompt_yn "Have you created the IAM user with this policy?"; then
+        echo ""
+        echo "Please create the IAM user first, then run this setup again."
+        exit 0
+    fi
+
+    echo ""
+    print_step "Enter your AWS credentials"
+
+    local aws_key aws_secret aws_region
+
+    aws_key=$(prompt "AWS Access Key ID")
+    aws_secret=$(prompt_secret "AWS Secret Access Key")
+    aws_region=$(prompt "AWS Region" "us-east-2")
+
+    # Save to config file
+    local aws_config="${CONFIG_DIR}/aws.conf"
+    cat > "${aws_config}" <<EOF
+# AWS Credentials for kamal-backups
+# Generated by setup.sh on $(date)
+AWS_ACCESS_KEY_ID=${aws_key}
+AWS_SECRET_ACCESS_KEY=${aws_secret}
+AWS_DEFAULT_REGION=${aws_region}
+EOF
+    chmod 600 "${aws_config}"
+
+    echo ""
+    echo -e "${GREEN}✓ AWS config saved to ${aws_config}${NC}"
+
+    # Test connection
+    print_step "Testing AWS connection..."
+
+    export AWS_ACCESS_KEY_ID="${aws_key}"
+    export AWS_SECRET_ACCESS_KEY="${aws_secret}"
+    export AWS_DEFAULT_REGION="${aws_region}"
+
+    if aws sts get-caller-identity &>/dev/null; then
+        echo -e "${GREEN}✓ AWS connection successful${NC}"
+    else
+        echo -e "${RED}✗ AWS connection failed. Please check your credentials.${NC}"
+        exit 1
+    fi
+}
+
+# Configure sites
+step_sites_config() {
+    print_header "Step 3: Site Configuration"
+
+    print_step "Detecting PostgreSQL containers..."
+
+    # Source docker functions
+    source "${SCRIPT_DIR}/lib/docker.sh"
+
+    local containers
+    containers=$(list_postgres_containers)
+
+    if [[ -n "${containers}" ]]; then
+        echo ""
+        echo "Found PostgreSQL containers:"
+        echo "${containers}" | while read -r container; do
+            echo "  - ${container}"
+        done
+        echo ""
+    else
+        echo ""
+        echo -e "${YELLOW}No PostgreSQL containers detected.${NC}"
+        echo "Containers should be named like 'myapp-postgres' or 'myapp_postgres'"
+        echo ""
+    fi
+
+    local sites_config="${CONFIG_DIR}/sites.conf"
+    : > "${sites_config}"  # Create empty file
+
+    echo "Now let's configure which sites to back up."
+    echo "For each site, you'll need:"
+    echo "  - Container name: The Docker container running PostgreSQL"
+    echo "  - Bucket name: S3 bucket name (will be created if needed)"
+    echo ""
+
+    local site_count=0
+    while true; do
+        ((site_count++))
+
+        echo -e "${BOLD}Site ${site_count}:${NC}"
+        local container bucket
+
+        container=$(prompt "  Container name (e.g., myapp-postgres)")
+
+        if [[ -z "${container}" ]]; then
+            if [[ ${site_count} -eq 1 ]]; then
+                echo -e "${RED}You must configure at least one site.${NC}"
+                ((site_count--))
+                continue
+            fi
+            break
+        fi
+
+        # Verify container exists
+        if container_is_running "${container}"; then
+            echo -e "  ${GREEN}✓ Container is running${NC}"
+        else
+            echo -e "  ${YELLOW}⚠ Container not found or not running${NC}"
+            if ! prompt_yn "  Add anyway?"; then
+                ((site_count--))
+                continue
+            fi
+        fi
+
+        # Suggest bucket name
+        local suggested_bucket
+        suggested_bucket="${container%-postgres}"
+        suggested_bucket="${suggested_bucket//_/-}-pg"
+
+        bucket=$(prompt "  S3 bucket name" "${suggested_bucket}")
+
+        # Validate bucket name
+        if [[ ! "${bucket}" =~ ^[a-z0-9][a-z0-9.-]*[a-z0-9]$ ]]; then
+            echo -e "  ${YELLOW}⚠ Bucket names should be lowercase with hyphens${NC}"
+        fi
+
+        # Add to config
+        echo "${container}:${bucket}" >> "${sites_config}"
+        echo -e "  ${GREEN}✓ Added: ${container} → ${bucket}${NC}"
+
+        echo ""
+        if ! prompt_yn "Add another site?"; then
+            break
+        fi
+    done
+
+    chmod 600 "${sites_config}"
+    echo ""
+    echo -e "${GREEN}✓ Sites config saved to ${sites_config}${NC}"
+}
+
+# Configure email (optional)
+step_email_config() {
+    print_header "Step 4: Email Notifications (Optional)"
+
+    echo "Email notifications can alert you when backups fail"
+    echo "and send weekly digest summaries."
+    echo ""
+    echo -e "${YELLOW}Requirements:${NC}"
+    echo "  - AWS SES must be configured in your region"
+    echo "  - The 'From' email address must be verified in SES"
+    echo "  - jq must be installed (for JSON handling)"
+    echo ""
+
+    if ! prompt_yn "Enable email notifications?"; then
+        local email_config="${CONFIG_DIR}/email.conf"
+        cat > "${email_config}" <<EOF
+# Email notifications disabled
+EMAIL_ENABLED=false
+EOF
+        chmod 600 "${email_config}"
+        echo -e "${GREEN}✓ Email notifications disabled${NC}"
+        return
+    fi
+
+    local email_from email_to
+
+    email_from=$(prompt "From email (must be verified in SES)")
+    email_to=$(prompt "To email (recipient)")
+
+    local email_config="${CONFIG_DIR}/email.conf"
+    cat > "${email_config}" <<EOF
+# Email notification settings
+# Generated by setup.sh on $(date)
+EMAIL_ENABLED=true
+EMAIL_FROM=${email_from}
+EMAIL_TO=${email_to}
+EMAIL_ON_FAILURE=true
+EMAIL_WEEKLY_DIGEST=true
+EOF
+    chmod 600 "${email_config}"
+
+    echo ""
+    echo -e "${GREEN}✓ Email config saved${NC}"
+
+    # Test email
+    if prompt_yn "Send a test email?"; then
+        source "${SCRIPT_DIR}/lib/email.sh"
+
+        # Load the config we just created
+        EMAIL_ENABLED=true
+        EMAIL_FROM="${email_from}"
+        EMAIL_TO="${email_to}"
+
+        if test_email_config; then
+            echo -e "${GREEN}✓ Test email sent successfully${NC}"
+        else
+            echo -e "${YELLOW}⚠ Test email failed. Check SES configuration.${NC}"
+        fi
+    fi
+}
+
+# Test backup
+step_test_backup() {
+    print_header "Step 5: Test Backup"
+
+    echo "Let's run a test backup to make sure everything works."
+    echo ""
+
+    if ! prompt_yn "Run test backup now?"; then
+        echo "Skipping test backup. You can run it later with:"
+        echo "  ./backup.sh --test"
+        return
+    fi
+
+    echo ""
+    print_step "Running test backup..."
+    echo ""
+
+    if "${SCRIPT_DIR}/backup.sh" --test; then
+        echo ""
+        echo -e "${GREEN}✓ Test backup completed successfully!${NC}"
+    else
+        echo ""
+        echo -e "${RED}✗ Test backup failed. Check the output above for errors.${NC}"
+    fi
+}
+
+# Setup cron
+step_cron_setup() {
+    print_header "Step 6: Cron Setup"
+
+    echo "To run backups automatically, add this to your crontab:"
+    echo ""
+    echo -e "${YELLOW}# Daily backup at 3 AM${NC}"
+    echo "0 3 * * * ${SCRIPT_DIR}/backup.sh >> ${LOG_DIR}/backup.log 2>&1"
+    echo ""
+
+    if prompt_yn "Add to crontab automatically?"; then
+        # Create a temporary file with existing crontab + new entry
+        local temp_cron
+        temp_cron=$(mktemp)
+
+        # Get existing crontab (might be empty)
+        crontab -l 2>/dev/null > "${temp_cron}" || true
+
+        # Check if entry already exists
+        if grep -q "kamal-backups/backup.sh" "${temp_cron}"; then
+            echo -e "${YELLOW}⚠ Cron entry already exists${NC}"
+        else
+            # Add new entry
+            echo "" >> "${temp_cron}"
+            echo "# kamal-backups - Daily PostgreSQL backup at 3 AM" >> "${temp_cron}"
+            echo "0 3 * * * ${SCRIPT_DIR}/backup.sh >> ${LOG_DIR}/backup.log 2>&1" >> "${temp_cron}"
+
+            crontab "${temp_cron}"
+            echo -e "${GREEN}✓ Cron entry added${NC}"
+        fi
+
+        rm -f "${temp_cron}"
+    else
+        echo ""
+        echo "To add manually, run: crontab -e"
+    fi
+}
+
+# Print summary
+print_summary() {
+    print_header "Setup Complete!"
+
+    echo "Your kamal-backups installation is ready."
+    echo ""
+    echo -e "${BOLD}Configuration files:${NC}"
+    echo "  - ${CONFIG_DIR}/aws.conf"
+    echo "  - ${CONFIG_DIR}/sites.conf"
+    echo "  - ${CONFIG_DIR}/email.conf"
+    echo ""
+    echo -e "${BOLD}Commands:${NC}"
+    echo "  Run backup now:     ${SCRIPT_DIR}/backup.sh"
+    echo "  Test backup:        ${SCRIPT_DIR}/backup.sh --test"
+    echo "  View logs:          tail -f ${LOG_DIR}/backup.log"
+    echo ""
+    echo -e "${BOLD}Backup schedule:${NC}"
+    echo "  - Daily backups at 3 AM (if cron was set up)"
+    echo "  - Retention: 7 daily, 5 weekly (Sundays), monthly (1st Sunday) forever"
+    echo ""
+    echo -e "${GREEN}Happy backing up!${NC}"
+}
+
+# Main setup flow
+main() {
+    print_header "KAMAL-BACKUPS SETUP WIZARD"
+
+    echo "This wizard will help you configure kamal-backups."
+    echo "You'll need:"
+    echo "  - AWS credentials (Access Key ID and Secret)"
+    echo "  - Names of your PostgreSQL Docker containers"
+    echo ""
+
+    if ! prompt_yn "Ready to begin?"; then
+        echo "Setup cancelled."
+        exit 0
+    fi
+
+    step_prerequisites
+    step_aws_config
+    step_sites_config
+    step_email_config
+    step_test_backup
+    step_cron_setup
+    print_summary
+}
+
+# Run main
+main "$@"

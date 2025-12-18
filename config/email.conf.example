@@ -1,0 +1,25 @@
+# Email notification settings (optional)
+# Copy this file to email.conf and configure if you want notifications:
+#   cp email.conf.example email.conf
+#
+# SECURITY: email.conf is gitignored and will NOT be committed
+# The setup.sh wizard will create this file with proper permissions (600)
+#
+# Email notifications require AWS SES to be configured in your region.
+# The EMAIL_FROM address must be verified in SES before use.
+
+# Enable or disable email notifications (true/false)
+EMAIL_ENABLED=false
+
+# Sender email address (must be verified in AWS SES)
+EMAIL_FROM=backups@yourdomain.com
+
+# Recipient email address for notifications
+EMAIL_TO=you@yourdomain.com
+
+# Notification settings
+# Send immediate email on backup failure
+EMAIL_ON_FAILURE=true
+
+# Send weekly digest every Sunday
+EMAIL_WEEKLY_DIGEST=true

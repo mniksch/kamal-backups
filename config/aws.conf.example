@@ -1,0 +1,15 @@
+# AWS Credentials for kamal-backups
+# Copy this file to aws.conf and fill in your values:
+#   cp aws.conf.example aws.conf
+#
+# SECURITY: aws.conf is gitignored and will NOT be committed
+# The setup.sh wizard will create this file with proper permissions (600)
+
+# AWS Access Key ID from your IAM user
+AWS_ACCESS_KEY_ID=your-access-key-id
+
+# AWS Secret Access Key from your IAM user
+AWS_SECRET_ACCESS_KEY=your-secret-access-key
+
+# AWS Region for S3 buckets (e.g., us-east-2, eu-west-1)
+AWS_DEFAULT_REGION=us-east-2

@@ -1,0 +1,19 @@
+# Sites to back up
+# Copy this file to sites.conf and configure your sites:
+#   cp sites.conf.example sites.conf
+#
+# SECURITY: sites.conf is gitignored and will NOT be committed
+# The setup.sh wizard will create this file with proper permissions (600)
+#
+# Format: CONTAINER_NAME:BUCKET_NAME
+# - CONTAINER_NAME: The Docker container name (e.g., cja_dash-postgres)
+# - BUCKET_NAME: The S3 bucket to store backups (e.g., cja-dash-pg)
+#
+# One site per line. Lines starting with # are comments.
+#
+# To find your container names, run:
+#   docker ps --format '{{.Names}}' | grep postgres
+#
+# Example configuration:
+# cja_dash-postgres:cja-dash-pg
+# ausl_dash-postgres:ausl-dash-pg

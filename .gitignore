@@ -1,0 +1,34 @@
+# Kamal-backups gitignore
+# This ensures no sensitive data is committed to the public repo
+
+# Config files with secrets
+config/aws.conf
+config/sites.conf
+config/email.conf
+
+# Backup files - never commit database dumps
+backups/*
+!backups/.gitkeep
+*.sql
+*.sql.gz
+
+# Log files
+logs/*
+!logs/.gitkeep
+*.log
+
+# Environment files
+.env
+.env.*
+
+# Editor and OS files
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Temporary files
+tmp/
+*.tmp
