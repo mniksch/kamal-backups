@@ -22,9 +22,9 @@ Automated PostgreSQL backup scripts for Kamal-deployed Django sites. Backs up to
 ### On Your VPS (as root)
 
 ```bash
-# Clone the repository
+# Clone the repository (or clone your fork)
 cd ~
-git clone https://github.com/yourusername/kamal-backups.git
+git clone https://github.com/mniksch/kamal-backups.git
 cd kamal-backups
 
 # Make scripts executable
