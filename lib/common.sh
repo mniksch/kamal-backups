@@ -88,7 +88,8 @@ load_config() {
 # Load all required configurations
 load_all_configs() {
     load_config "aws"
-    load_config "sites"
+    # Note: sites.conf is NOT sourced - it's read by get_sites()
+    # It contains data lines (container:bucket), not bash variables
 
     # Email config is optional
     if [[ -f "${CONFIG_DIR}/email.conf" ]]; then
