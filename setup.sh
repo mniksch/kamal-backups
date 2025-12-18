@@ -250,7 +250,7 @@ step_sites_config() {
 
     local site_count=0
     while true; do
-        ((site_count++))
+        site_count=$((site_count + 1))
 
         echo -e "${BOLD}Site ${site_count}:${NC}"
         local container bucket
@@ -260,7 +260,7 @@ step_sites_config() {
         if [[ -z "${container}" ]]; then
             if [[ ${site_count} -eq 1 ]]; then
                 echo -e "${RED}You must configure at least one site.${NC}"
-                ((site_count--))
+                site_count=$((site_count - 1))
                 continue
             fi
             break
@@ -272,7 +272,7 @@ step_sites_config() {
         else
             echo -e "  ${YELLOW}⚠ Container not found or not running${NC}"
             if ! prompt_yn "  Add anyway?"; then
-                ((site_count--))
+                site_count=$((site_count - 1))
                 continue
             fi
         fi

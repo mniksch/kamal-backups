@@ -158,11 +158,11 @@ EOF
 
             if [[ "${status}" == "success" ]]; then
                 body+="  ${day_name}: ✓ $(format_bytes "${size}")\n"
-                ((success_count++))
-                ((total_size += size))
+                success_count=$((success_count + 1))
+                total_size=$((total_size + size))
             else
                 body+="  ${day_name}: ✗ ${error}\n"
-                ((failure_count++))
+                failure_count=$((failure_count + 1))
             fi
         done <<< "${status_data}"
 

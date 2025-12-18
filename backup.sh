@@ -151,7 +151,7 @@ main() {
             continue
         fi
 
-        ((total_sites++))
+        total_sites=$((total_sites + 1))
 
         # In test mode, only backup first site
         if [[ "${TEST_MODE}" == "true" && ${total_sites} -gt 1 ]]; then
@@ -160,9 +160,9 @@ main() {
         fi
 
         if backup_site "${SITE_CONTAINER}" "${SITE_BUCKET}"; then
-            ((successful_sites++))
+            successful_sites=$((successful_sites + 1))
         else
-            ((failed_sites++))
+            failed_sites=$((failed_sites + 1))
         fi
 
         echo ""

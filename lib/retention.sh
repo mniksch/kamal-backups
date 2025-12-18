@@ -128,11 +128,11 @@ apply_retention() {
         fi
 
         if should_keep_backup "${backup_date}"; then
-            ((kept_count++))
+            kept_count=$((kept_count + 1))
         else
             log_info "Deleting old backup: ${s3_key} (date: ${backup_date})"
             if delete_from_s3 "${bucket}" "${s3_key}"; then
-                ((deleted_count++))
+                deleted_count=$((deleted_count + 1))
             fi
         fi
     done <<< "${backups}"
@@ -170,11 +170,11 @@ get_retention_stats() {
         days_old=$(( (today_epoch - backup_epoch) / 86400 ))
 
         if [[ ${days_old} -le 7 ]]; then
-            ((daily_count++))
+            daily_count=$((daily_count + 1))
         elif is_sunday "${backup_date}" && [[ ${days_old} -le 35 ]]; then
-            ((weekly_count++))
+            weekly_count=$((weekly_count + 1))
         elif is_first_sunday "${backup_date}"; then
-            ((monthly_count++))
+            monthly_count=$((monthly_count + 1))
         fi
     done <<< "${backups}"
 
