@@ -14,6 +14,9 @@ source "${SCRIPT_DIR}/lib/common.sh"
 BOLD='\033[1m'
 UNDERLINE='\033[4m'
 
+# Flag to skip email setup if jq is not available
+SKIP_EMAIL_SETUP=false
+
 # Print a section header
 print_header() {
     echo ""
@@ -103,7 +106,16 @@ step_prerequisites() {
         echo "  ✓ jq found"
     else
         echo "  ⚠ jq not found (required for email notifications)"
-        echo "    Install with: apt-get install jq"
+        echo "    Install with: apt-get install jq (or brew install jq on macOS)"
+        echo ""
+        if prompt_yn "Continue without email notifications?"; then
+            SKIP_EMAIL_SETUP=true
+            echo "  → Email notifications will be skipped"
+        else
+            echo ""
+            echo "Please install jq, then run setup again."
+            exit 0
+        fi
     fi
 
     if [[ ${#missing[@]} -gt 0 ]]; then
@@ -308,36 +320,27 @@ step_sites_config() {
 step_email_config() {
     print_header "Step 4: Email Notifications (Optional)"
 
+    # Skip if jq was not available during prerequisites
+    if [[ "${SKIP_EMAIL_SETUP}" == "true" ]]; then
+        echo "Skipping email setup (jq not installed)."
+        echo ""
+        local email_config="${CONFIG_DIR}/email.conf"
+        cat > "${email_config}" <<EOF
+# Email notifications disabled (jq not installed)
+EMAIL_ENABLED=false
+EOF
+        chmod 600 "${email_config}"
+        echo -e "${GREEN}✓ Email notifications disabled${NC}"
+        return
+    fi
+
     echo "Email notifications can alert you when backups fail"
     echo "and send weekly digest summaries."
     echo ""
     echo -e "${YELLOW}Requirements:${NC}"
     echo "  - AWS SES must be configured in your region"
     echo "  - The 'From' email address must be verified in SES"
-    echo "  - jq must be installed (for JSON handling)"
     echo ""
-
-    # Check for jq before proceeding
-    if ! command_exists jq; then
-        echo -e "${YELLOW}⚠ jq is not installed${NC}"
-        echo "  Email notifications require jq for JSON handling."
-        echo "  Install with: apt-get install jq (or brew install jq on macOS)"
-        echo ""
-        if prompt_yn "Continue without email notifications?"; then
-            local email_config="${CONFIG_DIR}/email.conf"
-            cat > "${email_config}" <<EOF
-# Email notifications disabled (jq not installed)
-EMAIL_ENABLED=false
-EOF
-            chmod 600 "${email_config}"
-            echo -e "${GREEN}✓ Email notifications disabled${NC}"
-            return
-        else
-            echo ""
-            echo "Please install jq, then run setup again."
-            exit 0
-        fi
-    fi
 
     if ! prompt_yn "Enable email notifications?"; then
         local email_config="${CONFIG_DIR}/email.conf"
