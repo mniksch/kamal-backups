@@ -106,7 +106,7 @@ step_prerequisites() {
         echo "  ✓ jq found"
     else
         echo "  ⚠ jq not found (required for email notifications)"
-        echo "    Install with: apt-get install jq (or brew install jq on macOS)"
+        echo "    Install with: apt install jq"
         echo ""
         if prompt_yn "Continue without email notifications?"; then
             SKIP_EMAIL_SETUP=true
@@ -125,7 +125,7 @@ step_prerequisites() {
         echo "Please install them before continuing:"
         echo "  - Docker: https://docs.docker.com/engine/install/"
         echo "  - AWS CLI: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
-        echo "  - gzip: Usually pre-installed, or: apt-get install gzip"
+        echo "  - gzip: Usually pre-installed, or: apt install gzip"
         exit 1
     fi
 
