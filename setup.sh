@@ -317,6 +317,28 @@ step_email_config() {
     echo "  - jq must be installed (for JSON handling)"
     echo ""
 
+    # Check for jq before proceeding
+    if ! command_exists jq; then
+        echo -e "${YELLOW}⚠ jq is not installed${NC}"
+        echo "  Email notifications require jq for JSON handling."
+        echo "  Install with: apt-get install jq (or brew install jq on macOS)"
+        echo ""
+        if prompt_yn "Continue without email notifications?"; then
+            local email_config="${CONFIG_DIR}/email.conf"
+            cat > "${email_config}" <<EOF
+# Email notifications disabled (jq not installed)
+EMAIL_ENABLED=false
+EOF
+            chmod 600 "${email_config}"
+            echo -e "${GREEN}✓ Email notifications disabled${NC}"
+            return
+        else
+            echo ""
+            echo "Please install jq, then run setup again."
+            exit 0
+        fi
+    fi
+
     if ! prompt_yn "Enable email notifications?"; then
         local email_config="${CONFIG_DIR}/email.conf"
         cat > "${email_config}" <<EOF
