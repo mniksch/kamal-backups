@@ -157,14 +157,14 @@ backup_container() {
         return 1
     fi
 
-    # Run pg_dump
-    if ! run_pg_dump "${container}" "${backup_file}"; then
+    # Run pg_dump (discard size output, we only need success/failure)
+    if ! run_pg_dump "${container}" "${backup_file}" > /dev/null; then
         rm -f "${backup_file}"
         return 1
     fi
 
-    # Compress the backup
-    if ! compress_backup "${backup_file}"; then
+    # Compress the backup (discard size output, we only need success/failure)
+    if ! compress_backup "${backup_file}" > /dev/null; then
         rm -f "${backup_file}" "${compressed_file}"
         return 1
     fi

@@ -112,6 +112,7 @@ apply_retention() {
 
     if [[ -z "${backups}" ]]; then
         log_info "No backups found in bucket ${bucket}"
+        echo "0"
         return 0
     fi
 
