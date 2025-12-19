@@ -115,18 +115,18 @@ verify_s3_backup() {
 
     log_info "Verifying backup integrity..."
 
-    # Download first 1KB of the file
+    # Download first 64KB of the file (need enough for gzip to decompress a block)
     if ! aws s3api get-object \
         --bucket "${bucket}" \
         --key "${s3_key}" \
-        --range "bytes=0-1023" \
+        --range "bytes=0-65535" \
         "${temp_file}" &>/dev/null; then
         log_error "Failed to download backup header from ${s3_uri}"
         rm -f "${temp_file}"
         return 1
     fi
 
-    # Check if it's a valid gzip file and contains PostgreSQL dump header
+    # Try to decompress and check for PostgreSQL dump header
     local header
     if header=$(zcat "${temp_file}" 2>/dev/null | head -c 512); then
         if echo "${header}" | grep -q "PostgreSQL database dump"; then
