@@ -53,16 +53,16 @@ create_bucket_if_needed() {
 
     log_info "Creating bucket: ${bucket}"
 
-    # For us-east-2, we can't specify LocationConstraint
-    if [[ "${AWS_DEFAULT_REGION}" == "us-east-2" ]]; then
-        if aws s3api create-bucket --bucket "${bucket}" 2>/dev/null; then
+    # Only us-east-1 doesn't need LocationConstraint; all other regions require it
+    if [[ "${AWS_DEFAULT_REGION}" == "us-east-1" ]]; then
+        if aws s3api create-bucket --bucket "${bucket}"; then
             log_success "Bucket ${bucket} created"
             return 0
         fi
     else
         if aws s3api create-bucket \
             --bucket "${bucket}" \
-            --create-bucket-configuration LocationConstraint="${AWS_DEFAULT_REGION}" 2>/dev/null; then
+            --create-bucket-configuration LocationConstraint="${AWS_DEFAULT_REGION}"; then
             log_success "Bucket ${bucket} created"
             return 0
         fi

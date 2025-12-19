@@ -31,14 +31,14 @@ date_month() { date '+%m'; }
 date_day() { date '+%d'; }
 day_of_week() { date '+%u'; }  # 1=Monday, 7=Sunday
 
-# Logging functions
+# Logging functions - all go to stderr so they don't get captured in $()
 log_info() {
-    echo -e "[$(timestamp)] ${BLUE}INFO${NC}: $*"
+    echo -e "[$(timestamp)] ${BLUE}INFO${NC}: $*" >&2
     echo "[$(timestamp)] INFO: $*" >> "${LOG_DIR}/backup.log"
 }
 
 log_success() {
-    echo -e "[$(timestamp)] ${GREEN}SUCCESS${NC}: $*"
+    echo -e "[$(timestamp)] ${GREEN}SUCCESS${NC}: $*" >&2
     echo "[$(timestamp)] SUCCESS: $*" >> "${LOG_DIR}/backup.log"
 }
 
