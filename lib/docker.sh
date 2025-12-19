@@ -102,6 +102,17 @@ run_pg_dump() {
         fi
 
         log_success "pg_dump completed: $(format_bytes "${size}")"
+
+        # List tables that were backed up (for user reassurance)
+        local tables
+        tables=$(docker exec -e PGPASSWORD="${PG_PASSWORD}" "${container}" \
+            psql -h localhost -p 5432 -U "${PG_USER}" -d "${PG_DB}" -t -c \
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;" 2>/dev/null | \
+            sed 's/^[[:space:]]*//' | grep -v '^$' | tr '\n' ', ' | sed 's/,$//')
+        if [[ -n "${tables}" ]]; then
+            log_info "Tables backed up: ${tables}"
+        fi
+
         echo "${size}"
         return 0
     else
