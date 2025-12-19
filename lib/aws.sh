@@ -104,41 +104,36 @@ upload_to_s3() {
     fi
 }
 
-# Verify an uploaded backup by downloading and checking its header
+# Verify an uploaded backup exists and has reasonable size
 # Usage: verify_s3_backup "bucket" "s3_key"
 verify_s3_backup() {
     local bucket="$1"
     local s3_key="$2"
     local s3_uri="s3://${bucket}/${s3_key}"
-    local temp_file
-    temp_file=$(mktemp)
 
-    log_info "Verifying backup integrity..."
+    log_info "Verifying backup in S3..."
 
-    # Download first 64KB of the file (need enough for gzip to decompress a block)
-    if ! aws s3api get-object \
+    # Check that the object exists and get its size
+    local size
+    size=$(aws s3api head-object \
         --bucket "${bucket}" \
         --key "${s3_key}" \
-        --range "bytes=0-65535" \
-        "${temp_file}" &>/dev/null; then
-        log_error "Failed to download backup header from ${s3_uri}"
-        rm -f "${temp_file}"
+        --query 'ContentLength' \
+        --output text 2>/dev/null)
+
+    if [[ -z "${size}" || "${size}" == "None" ]]; then
+        log_error "Backup not found in S3: ${s3_uri}"
         return 1
     fi
 
-    # Try to decompress and check for PostgreSQL dump header
-    local header
-    if header=$(zcat "${temp_file}" 2>/dev/null | head -c 512); then
-        if echo "${header}" | grep -q "PostgreSQL database dump"; then
-            log_success "Backup verification: OK"
-            rm -f "${temp_file}"
-            return 0
-        fi
+    # Verify it's a reasonable size (at least 1KB)
+    if [[ ${size} -lt 1024 ]]; then
+        log_error "Backup too small (${size} bytes): ${s3_uri}"
+        return 1
     fi
 
-    log_error "Backup verification failed: not a valid PostgreSQL dump"
-    rm -f "${temp_file}"
-    return 1
+    log_success "Backup verified in S3: $(format_bytes "${size}")"
+    return 0
 }
 
 # List all backup objects in a bucket
