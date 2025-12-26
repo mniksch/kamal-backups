@@ -65,7 +65,7 @@ extract_date_from_key() {
 # Returns 0 (true) if backup should be kept, 1 (false) if it should be deleted
 should_keep_backup() {
     local backup_date="$1"
-    local today_epoch now_epoch days_old
+    local today_epoch backup_epoch days_old
 
     today_epoch=$(date +%s)
     backup_epoch=$(date_to_epoch "${backup_date}")
